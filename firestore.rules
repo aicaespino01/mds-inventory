@@ -1,0 +1,63 @@
+rules_version = '2';
+
+// Security rules for MDS Inventory (paste into Firebase console > Firestore Database > Rules > Publish).
+// - Nobody can read or change anything without a login that the admin added in Team.
+// - Staff can record stock in/out and counts, but can't edit item details or the team.
+// - Entries can never be deleted; mistakes are fixed with "Undo", which is recorded too.
+// - OWNER_UID is the clinic owner's own login. Only that login can create the first admin profile.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function profilePath() { return /databases/$(database)/documents/users/$(request.auth.uid); }
+    function profile() { return get(profilePath()).data; }
+    function isMember() { return signedIn() && exists(profilePath()) && profile().active == true; }
+    function isAdmin() { return isMember() && profile().role == 'admin'; }
+    function canRecord() { return isMember() && profile().role in ['admin', 'staff']; }
+    function changedOnly(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+
+    function isOwnerSetup(uid) {
+      return signedIn() && request.auth.uid == uid && uid == 'PASTE_OWNER_UID_HERE'
+        && request.resource.data.role == 'admin' && request.resource.data.active == true;
+    }
+
+    match /users/{uid} {
+      allow read: if isMember() || (signedIn() && request.auth.uid == uid);
+      allow create: if isAdmin() || isOwnerSetup(uid);
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /items/{itemId} {
+      allow read: if isMember();
+      allow create: if isAdmin();
+      allow update: if isAdmin()
+        || (canRecord() && changedOnly(['qty', 'batches', 'counted', 'updatedAt', 'updatedBy']));
+      allow delete: if false;
+    }
+
+    match /movements/{entryId} {
+      allow read: if isMember();
+      allow create: if canRecord()
+        && request.resource.data.by == request.auth.uid
+        && request.resource.data.at == request.time;
+      // Only "mark as undone" is allowed: admin any time, staff on their own entry within a day.
+      allow update: if changedOnly(['reversed', 'reversedBy', 'reversedByName', 'reversedAt'])
+        && resource.data.reversed != true
+        && (isAdmin() || (canRecord() && resource.data.by == request.auth.uid
+                          && resource.data.at > request.time - duration.value(1, 'd')));
+      allow delete: if false;
+    }
+
+    match /suppliers/{supplierId} {
+      allow read: if isMember();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /stats/{month} {
+      allow read: if isMember();
+      allow write: if canRecord();
+    }
+  }
+}

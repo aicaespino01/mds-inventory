@@ -1,0 +1,11 @@
+{
+  "name": "mds-inventory",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Inventory app for MDS Dental & Aesthetics Clinic",
+  "scripts": {
+    "test": "node --test tests/logic.test.mjs",
+    "serve": "node tools/serve.mjs"
+  }
+}

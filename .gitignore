@@ -1,0 +1,26 @@
+# Tools / editor
+node_modules/
+.DS_Store
+Thumbs.db
+
+# Never commit clinic data files
+*.xlsx
+*.xls
+*.csv
+*.docx
+
+# Never upload private data or secrets
+*.xlsm
+*.doc
+*.pdf
+*.accdb
+*.mdb
+*.sqlite
+*.db
+.env
+.env.*
+*.key
+*.pem
+*.p12
+notes-private/
+desktop.ini
